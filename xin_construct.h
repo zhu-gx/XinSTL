@@ -33,7 +33,7 @@ namespace XinSTL{
     }
 
     //根据type_traits中的trivial_destructor采用效率更高的destroy
-    //当type_traits表示non-trivial destructor,即需要调用析构析构
+    //当type_traits表示有non-trivial destructor,即需要调用析构析构
     template<class ForwardIterator>
     inline void __destroy_aux(ForwardIterator first,ForwardIterator last,_false_type){
         for(;first < last;++first){
@@ -41,7 +41,8 @@ namespace XinSTL{
         }
     }
 
-    //当type_traits表示有trivial destructor
+    //当type_traits表示没有non-trivial destructor
+    //那么不需要一次次调用析构函数
     template<class ForwardIterator>
     inline void __destroy_aux(ForwardIterator,ForwardIterator,_true_type){}
 

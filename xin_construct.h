@@ -22,9 +22,29 @@ namespace XinSTL{
     template<class ForwardIterator>
     inline void destroy(ForwardIterator first,ForwardIterator last){
         __destroy(first,last,value_type(first));
+        //value_type是一个iterator中的函数，返回迭代器指向类型的指针
     }
 
-    
+    //判断元素的type_traits是否有trivial destruct
+    template<class ForwardIterator,class T>
+    inline void __destroy(ForwardIterator first,ForwardIterator last,T*){
+        typedef typename __type_traits<T>::has_trivial_destruct trivial_destructor;
+        __destroy_aux(first,last,trivial_destructor);
+    }
+
+    //根据type_traits中的trivial_destructor采用效率更高的destroy
+    //当type_traits表示non-trivial destructor,即需要调用析构析构
+    template<class ForwardIterator>
+    inline void __destroy_aux(ForwardIterator first,ForwardIterator last,_false_type){
+        for(;first < last;++first){
+            destroy(&*first);
+        }
+    }
+
+    //当type_traits表示有trivial destructor
+    template<class ForwardIterator>
+    inline void __destroy_aux(ForwardIterator,ForwardIterator,_true_type){}
+
 }
 
 #endif

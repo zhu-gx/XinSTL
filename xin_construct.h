@@ -1,6 +1,6 @@
 //构造和析构的基本工具
-#ifndef __xin__construct__
-#define __xin__construct__
+#ifndef __XinSTLconstruct__
+#define __XinSTLconstruct__
 
 #include<new> //placement new
 #include<xin_TypeTraits.h>
@@ -48,4 +48,4 @@ namespace XinSTL{
 
 }
 
-#endif
+#endif //__XinSTLconstruct__

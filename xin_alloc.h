@@ -63,12 +63,15 @@ namespace XinSTL {
 			}
 			return result;
 		}
+
+		static void deallocate(void *p,size_t /**/)
 	};
 
 	//第二级配置器
 	//维护16个自由链表free lists，内存池memory pool以malloc()配置而成
 	//如果内存不足，则转调用第一级配置器
 	//如果需求区块大于128bytes，就调用第一级配置器
+
 }
 
 #endif //__XinSTLalloc__

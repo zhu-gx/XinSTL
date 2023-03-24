@@ -33,7 +33,7 @@ namespace XinSTL {
 		static void deallocate(T *p,size_t n){
 			if(0 != n) Alloc::deallocate(p,n*sizeof(T));
 		}
-		static void deallocate(T *p){
+		static void deallocate(T *p){·
 			Alloc::deallocate(p,sizeof(T));
 		}
 	};
@@ -181,6 +181,7 @@ namespace XinSTL {
 			0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		};
 		//根据区块大小，选择对应的free-list,n从0开始
+		//等价于(bytes+7)/8-1
 		static size_t NFREELISTS_INDEX(size_t bytes){
 			return (((bytes) + ALIGN::_align-1) / ALIGN::_align-1);
 		}
@@ -200,6 +201,53 @@ namespace XinSTL {
 		static void * allocate(size_t bytes);
 		static void deallocate(void *p,size_t bytes);
 		static void * reallocate(void *p,size_t old_sz,size_t new_sz);
+
+		//第二级配置器的标准接口函数allocate()
+		//根据n的大小采取对应的内存配置操作
+		static void * allocate(size_t n){//n>0
+			obj * volatile my_free_list;
+			obj * result;
+			//n>128，调用第一级配置器
+			if(n>(size_t)MAX_BYTES::_max_bytes){
+				return (malloc_alloc::allocate(n));
+			}
+			//寻找16个free-list中适当的一个
+			my_free_list = free_list + NFREELISTS_INDEX(n);
+			//result指向即将被调用的chunk
+			result = *my_free_list;
+			if(result == 0){
+				//没有找到可用的free list，准备重新填充free_list
+				void *r = refill(ROUND_UP(n));
+				return r;
+			}
+			//调整free list
+			//该编号的free list原本指向的第一个chunk被调用
+			//改为指向下一个chunk，即未被调用的那个
+			*my_free_list = result -> free_list_link;
+			return result;
+		}
+
+		//第二级配置器的标准接口函数deallocate()
+		//根据n的大小采取对应的内存回收操作
+		//将对应的内存回收进内存池
+		static void deallocate(void *p,size_t n){ //p不可以是0
+			//指针q指向回收内存地址
+			//指针my_free_list指向对应编号的内存池地址
+			obj *q = (obj*) p;
+			obj * volatile * my_free_list;
+			//大于128，调用第一级配置器
+			if(n > (size_t)MAX_BYTES::_max_bytes){
+				malloc_alloc::deallocate(p,n);
+				return;
+			}
+			//查找对应编号的free list
+			my_free_list = free_list + NFREELISTS_INDEX(n);
+			//调整free list，回收区块
+			//让q指向当前对应编号内存池中的第一个chunk
+			q -> free_list_link = *my_free_list;
+			//令对应内存池指向新加入的chunk
+			*my_free_list = q;
+		}
 	};
 }
 

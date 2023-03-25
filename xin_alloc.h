@@ -248,6 +248,46 @@ namespace XinSTL {
 			//令对应内存池指向新加入的chunk
 			*my_free_list = q;
 		}
+
+		//当free list中没有可用区块时
+		//调用refill()
+		//通过chunk_alloc()函数，缺省分配20个区块
+		void * refill(size_t n){
+			int nobjs = 20;
+			//调用chunk_alloc()
+			//尝试取得nobjs个chunk作为free list的新节点
+			//其中nobjs是pass by reference
+			char * chunk = chunk_alloc(n,nobjs);
+			objs * volatile * my_free_list;
+			obj * result;
+			obj * current_obj,obj * next_obj;
+			int i;
+
+			//如果值获得一个chunk，则这个chunk返回给调用者
+			//free list没有新节点
+			if(1 == nobjs){
+				return(chunk);
+			}
+			//否则，准备纳入free list
+			my_free_list = free_list + NFREELISTS_INDEX(n);
+
+			//以下在chunk空间内建立free list
+			result = (obj*)chunk;//这一块准备返回给调用者
+			//以下引导free list指向新的空间
+			*my_free_list = next_obj = (obj*)(chunk+n);
+			//以下将free list的各节点串接起来
+			for(int i = 1;;i++){//从1开始，第0个返回调用
+				current_obj = next_obj;
+				next_obj = (obj*)((char*)next_obj+n);
+				if(nobjs-1 == i){
+					current_obj -> free_list_link = 0;
+					break;
+				}else{
+					current_obj -> free_list_link = next_obj;
+				}
+			}
+			return(result);
+		}
 	};
 }
 

@@ -33,7 +33,7 @@ namespace XinSTL {
 		static void deallocate(T *p,size_t n){
 			if(0 != n) Alloc::deallocate(p,n*sizeof(T));
 		}
-		static void deallocate(T *p){·
+		static void deallocate(T *p){
 			Alloc::deallocate(p,sizeof(T));
 		}
 	};
@@ -174,10 +174,10 @@ namespace XinSTL {
 			union obj * free_list_link;
 			//obj视为一个指针，指向实际区块
 			char client_data[1];
-		}
+		};
 
 		//free_list共有16个
-		static obj * free_list[NFREELISTS::_nfreelists]={
+		constexpr static obj * free_list[NFREELISTS::_nfreelists]={
 			0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		};
 		//根据区块大小，选择对应的free-list,n从0开始
@@ -288,7 +288,92 @@ namespace XinSTL {
 			}
 			return(result);
 		}
+
+		//从内存池中去空间给free list使用
+		//chunk_alloc()
+		//假设size已经上调为8的倍数
+		//nobjs是pass by reference
+		char * chunk_alloc(size_t size,int & nobjs){
+			char * result;
+			size_t total_bytes = size * nobjs;
+			size_t bytes_left = end_free - start_free;//内存池剩余空间
+
+			if(bytes_left >= total_bytes){
+				//内存池剩余空间满足需求量
+				//如果水量充足，调用20个chunk返回
+				result = start_free;
+				start_free += total_bytes;
+				return(result);
+			}else if(bytes_left >= size){
+				//内存池剩余空间不能满足需求量
+				//但足够满足一个（或以上）的区块
+				nobjs = bytes_left/size;//根据剩余空间更新区块数量
+				total_bytes = size * nobjs;//更新需要的总空间
+				result = start_free;
+				start_free += total_bytes;
+				return(result);
+			}else{
+				//内存池剩余内存连一个区块的大小都不能提供
+				//新水量的大小为需求量的两倍，再加上一个随着配置次数越来越大的附加量
+				size_t bytes_to_get = 2 * total_bytes + ROUND_UP(heap_size>>4);
+				//以下试着让内存池中的残余零头还有利用价值
+				if(bytes_left > 0){
+					//内存池还有一些零头
+					//先配给适当的free list
+					//首先寻找适当的free list
+					obj * volatile * my_free_list = free_list + NFREELISTS_INDEX(bytes_left);
+					//调整free list
+					//将内存池中的残余空间编入
+					((obj*)start_free)->free_list_link = *my_free_list;
+					*my_free_list = (obj*)start_free;
+				}
+				//配置heap空间
+				//用来补充内存池
+				start_free = (char*)malloc(bytes_to_get);
+				if(start_free == 0){
+					//如果heap空间不足
+					//malloc()失败
+					int i;
+					obj * volatile * my_free_list,*p;
+					//试着检查手上的东西
+					//不打算配置较小的区块，如果是多线程机器上会导致灾难
+					//以下搜寻适当的free list
+					//尚有未用区块，且空间足够大的free list
+					for(int i = size;i < MAX_BYTES::_max_bytes;i += ALIGN::_align){
+						my_free_list = free_list + NFREELISTS_INDEX(i);
+						p = *my_free_list;
+						if(p != 0){
+							//free list中有未用区块
+							//调整free list以释出未用区块
+							*my_free_list = p->free_list_link;
+							start_free = (char*)p;
+							end_free = start_free + i;
+							//递归调用自己
+							//用于修正nobjs
+							return(chunk_alloc(size,nobjs));
+							//注意，任何残余零头都会被编入适当的free list中备用
+						}
+					}
+					//如果出现意外
+					//到处都没有内存可用
+					//调用第一级配置器
+					//看看out of memory机制能否发挥作用
+					end_free = 0;
+					start_free = (char*)malloc_alloc::allocate(bytes_to_get);
+					//这会导致抛出异常
+					//或者内存不足的情况得到改善
+				}
+				heap_size += bytes_to_get;
+				end_free = start_free + bytes_to_get;
+				//递归调用自己，用于修正nobjs
+				return chunk_alloc(size,nobjs);
+			}
+		}
 	};
+
+	//第二级配置器重命名
+	//用于容器的默认调用
+	typedef _default_alloc_template<0> xin_alloc;
 }
 
 #endif //__XinSTLalloc__

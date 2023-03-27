@@ -187,19 +187,19 @@ namespace XinSTL {
 		}
 
 		//返回一个大小为n的对象，并可能加入大小为n的其他区块到free-list
-		static void *refill(size_t n);
+		//static void *refill(size_t n);
 		//配置一大块空间，可容纳nobjs个大小为size的区块
 		//如果配饰nobjs个区块不便，则nobjs有可能降低
-		static char *chunk_alloc(size_t size,int &nobjs);
+		//static char *chunk_alloc(size_t size,int &nobjs);
 
 		//chunk分配状态
-		static char *start_free=0;//内存池起始位置，只在chunk_alloc()中变化
-		static char *end_free=0;//内存池结束位置，只在chunk_alloc()中变化
-		static size_t heap_size=0;
+		char *start_free=0;//内存池起始位置，只在chunk_alloc()中变化
+		char *end_free=0;//内存池结束位置，只在chunk_alloc()中变化
+		size_t heap_size=0;
 
 	public:
-		static void * allocate(size_t bytes);
-		static void deallocate(void *p,size_t bytes);
+		//static void * allocate(size_t bytes);
+		//static void deallocate(void *p,size_t bytes);
 		static void * reallocate(void *p,size_t old_sz,size_t new_sz);
 
 		//第二级配置器的标准接口函数allocate()
@@ -258,9 +258,9 @@ namespace XinSTL {
 			//尝试取得nobjs个chunk作为free list的新节点
 			//其中nobjs是pass by reference
 			char * chunk = chunk_alloc(n,nobjs);
-			objs * volatile * my_free_list;
+			_default_alloc_template::obj * volatile * my_free_list;
 			obj * result;
-			obj * current_obj,obj * next_obj;
+			obj * current_obj,next_obj;
 			int i;
 
 			//如果值获得一个chunk，则这个chunk返回给调用者

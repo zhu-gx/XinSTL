@@ -53,6 +53,7 @@ public:
 
 //如果不能隐式转换为input型或者output型
 //没有迭代器类型
+//模板元编程技法，需要定义一个一般情况，保证该类能通过编译器的编译
 template<class Iterator,bool>
 struct iterator_traits_implement{};
 
@@ -65,9 +66,6 @@ struct iterator_traits_implement<Iterator,true>{
     using reference = typename Iterator::reference;
     using difference_type = typename Iterator::difference_type;
 };
-
-template<class Iterator,bool>
-struct iterator_traits_helper{};
 
 //没有迭代器类型
 template<class Iteartor,bool>
@@ -159,6 +157,7 @@ value_type(const Iterator&){
     return static_cast<typename iterator_traits<Iterator>::value_type*>(0);
 }
 
+//******************************************
 //以下函数用于计算迭代器之间的距离
 //input版本
 template<class InputIterator>
@@ -179,11 +178,101 @@ distance_dispatch(RandomIterator first,RandomIterator last,random_access_iterato
     return last - first;
 }
 
-//计算迭代器距离的函数，根据类型的不同采取不同的底层实现
+//计算迭代器距离的函数，根据迭代器类型的不同采取不同的底层实现
 template<class Iterator>
 typename iterator_traits<Iterator>::difference_type
 distance(Iterator first,Iterator last){
     return distance_dispatch(first,last,iterator_category(first));
 }
+
+//****************************************
+//以下函数用于让迭代器前进n个距离
+//根据迭代器类型的不同采用不同的底层实现
+template<class InputIterator,class Distance>
+void advance(InputIterator& i,Distance n){
+    advance_dispatch(i,n,iterator_category());
+}
+
+//input_iterator版本
+template<class InputIterator,class Distance>
+void advance_dispatch(InputIterator& i,Distance n,input_iterator_tag){
+    while(n--){
+        ++i;
+    }
+}
+
+//bidirectional_iterator版本
+template<class BidirectionalIterator,class Distance>
+void advance_dispatch(BidirectionalIterator& i,Distance n,bidirectional_iterator_tag){
+    if(n >= 0){
+        while(n--){
+            ++i;
+        }
+    }else{
+        while(n++){
+            --i;
+        }
+    }
+}
+
+//random_access_iterator版本
+template<class RandomIterator,class Distance>
+void advance_dispatch(RandomIterator& i,Distance n,random_access_iterator_tag){
+    i += n;
+}
+
+//***********************************************
+//模板类，reverse_iterator
+//代表反向迭代器，使前进为后退，后退为前进
+template<class Iterator>
+class reverse_iterator{
+private:
+    Iterator current;//记录原本对应的正向迭代器
+
+public:
+    //反向迭代器的五种相应型别
+    using iterator_category = typename iterator_traits<Iterator>::iterator_category;
+    using value_type = typename iterator_traits<Iterator>::value_type;
+    using distance_type = typename iterator_traits<Iterator>::difference_type;
+    using pointer = typename iterator_traits<Iterator>::pointer;
+    using reference = typename iterator_traits<Iterator>::reference;
+    
+    using iterator_type = Iterator;
+    using self = reverse_iterator<Iterator>;
+
+public:
+    //构造函数
+    reverse_iterator(){};
+    //防止隐式转换
+    explicit reverse_iterator(iterator_type i):current(i){}
+    //如果传入的就是反向迭代器
+    reverse_iterator(const self& rhs):current(rhs.current){}
+
+    //取出对应的正向迭代器
+    iterator_type base()const{
+        return current;
+    }
+
+    //重载操作符
+    //取值操作，对应的是正向迭代器的前一个位置
+    reference operator*()const{
+        auto temp = current;
+        return *--temp;
+    }
+
+    //迭代器对应值取地址操作
+    pointer operator->()const{
+        return &(operator*());
+    }
+
+    //++变--
+    self& operator++(){
+        --current;
+        return *this;
+    }
+
+    
+};
+
 
 }

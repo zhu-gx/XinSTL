@@ -233,7 +233,7 @@ public:
     //反向迭代器的五种相应型别
     using iterator_category = typename iterator_traits<Iterator>::iterator_category;
     using value_type = typename iterator_traits<Iterator>::value_type;
-    using distance_type = typename iterator_traits<Iterator>::difference_type;
+    using difference_type = typename iterator_traits<Iterator>::difference_type;
     using pointer = typename iterator_traits<Iterator>::pointer;
     using reference = typename iterator_traits<Iterator>::reference;
     
@@ -271,8 +271,73 @@ public:
         return *this;
     }
 
-    
+    //--变++
+    self& operator--(int){
+        self tmp = *this;
+        ++current;
+        return tmp;
+    }
+
+    self& operator+=(difference_type n){
+        current -= n;
+        return *this;
+    }
+
+    self operator+(difference_type n)const{
+        return self(current-n);
+    }
+
+    self& operator-=(difference_type n){
+        current += n;
+        return *this;
+    }
+
+    self operator-(difference_type n)const{
+        return self(current + n);
+    }
+
+    self operator[](difference_type n)const{
+        return *(*this+n);
+    }
 };
+
+//重载operator-
+template<class Iterator>
+typename reverse_iterator<Iterator>::difference_type
+operator-(const reverse_iterator<Iterator>& lhs,const reverse_iterator<Iterator>& rhs){
+    return rhs.base() - lhs.base();
+}
+
+//重载比较操作符
+template<class Iterator>
+bool operator==(const reverse_iterator<Iterator>& lhs,const reverse_iterator<Iterator>& rhs){
+    return lhs.base() == rhs.base();
+}
+
+template<class Iterator>
+bool operator<(const reverse_iterator<Iterator>& lhs,const reverse_iterator<Iterator>& rhs){
+    return lhs.base() > rhs.base();
+}
+
+template<class Iterator>
+bool operator!=(const reverse_iterator<Iterator>& lhs,const reverse_iterator<Iterator>& rhs){
+    return !(rhs==lhs);
+}
+
+template<class Iterator>
+bool operator>(const reverse_iterator<Iterator>& lhs,const reverse_iterator<Iterator>& rhs){
+    return rhs < lhs;//调用已经重定义的<运算符
+}
+
+template<class Iterator>
+bool operator>=(const reverse_iterator<Iterator>& lhs,reverse_iterator<Iterator>& rhs){
+    return !(rhs < lhs);
+}
+
+template<class Iterator>
+bool operator<=(const reverse_iterator<Iterator>& lhs,const reverse_iterator<Iterator>& rhs){
+    return !(lhs < rhs);
+}
 
 
 }

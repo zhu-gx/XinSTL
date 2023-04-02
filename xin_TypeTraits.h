@@ -1,3 +1,5 @@
+//为方便测试，最后采用xin_type_traits版本
+
 #pragma once
 //type traits技法主要通过判断型别的特性，选用最效率最高的措施
 //是否具备non-trivial default ctor

@@ -368,4 +368,431 @@ namespace XinSTL{
         return f;
     }
     
+    //****************************************************************************
+    //adjacent_find
+    //找出第一对匹配的相邻元素，缺省使用operator==比较
+    //如果找到返回一个迭代器，指向这对元素的第一个元素
+    template<class ForwardIterator>
+    ForwardIterator adjacent_find(ForwardIterator first,ForwardIterator last){
+        if(first == last){
+            return last;
+        }
+        auto next = first;
+        while(++next != last){
+            if(*first == *next){
+                return first;
+            }
+            first = next;
+        }
+        return last;
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    template<class ForwardIterator,class Compare>
+    ForwardIterator adjacent_find(ForwardIterator first,ForwardIterator last,Compare comp){
+        if(first == last){
+            return last;
+        }
+        auto next = first;
+        while(++next != last){
+            if(comp(*first,*next)){
+                return first;
+            }
+            first = next;
+        }
+        return last;
+    }
+
+    //****************************************************************************
+    //lower_bound
+    //在有序数列[first,last)中查找第一个不小于value的元素
+    //并返回指向它的迭代器，若没有，则返回last
+    //版本一采用operator<，版本二采用仿函数comp
+    //lower_bound需要辅助函数实现细节，实际上使用二分查找实现
+
+    //版本一的forward_iterator_tag版本
+    template<class ForwardIterator,class T>
+    ForwardIterator __lower_bound(ForwardIterator first,ForwardIterator last,const T& value,forward_iterator_tag){
+        auto len = XinSTL::distance(first,last);//求取整个区间的长度len
+        auto half = len;//主要用于确定half的size_type
+        ForwardIterator middle;
+        while(len > 0){
+            half = len >> 1;//除以2
+            //下面两行令middle指向
+            middle = first;
+            XinSTL::advance(middle,half);
+            if(*middle < value){//如果中间位置的元素值<value
+                first = middle;//令first指向中点的下一个位置，重复
+                first++;
+                len = len - half - 1;//修正len，在右半区域查找
+            }else{
+                len = half;//同样修正len，在左半区域查找
+            }
+        }
+        return first;
+    }
+
+    //版本二的random_access_iterator_tag版本
+    template<class RandomIterator,class T>
+    RandomIterator __lower_bound(RandomIterator first,RandomIterator last,const T& value,random_access_iterator_tag){
+        auto len = last - first;//此处体现与forwar_iterator的不同
+        auto half = len;
+        RandomIterator middle;
+        while(len > 0){
+            half = len >> 1;
+            middle = first + half;//此处体现与forwar_iterator的不同
+            if(*middle < value){
+                first = middle + 1;
+                len = len - half - 1;
+            }else{
+                len = half;
+            }
+        }
+        return first;
+    }
+
+    template<class ForwardIterator,class T>
+    ForwardIterator lower_bound(ForwardIterator first,ForwardIterator last,const T& value){
+        return XinSTL::__lower_bound(first,last,value,iterator_category(first));
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    //版本二的辅助函数
+    //forwar_iterator_tag版本
+    template<class ForwardIterator,class T,class Compare>
+    ForwardIterator __lower_bound(ForwardIterator first,ForwardIterator last,const T& value,forward_iterator_tag,Compare comp){
+        auto len = XinSTL::distance(first,last);
+        auto half = len;
+        ForwardIterator middle;
+        while(len > 0){
+            half = len >> 1;
+            middle = first;
+            XinSTL::advance(middle,half);
+            if(comp(*middle,value)){
+                first = middle;
+                first++;
+                len = len - half - 1;
+            }else{
+                len = half;
+            }
+        }
+        return first;
+    }
+
+    //辅助函数的random_access_iterator_tag版本
+    template<class RandomIterator,class T,class Compare>
+    RandomIterator __lower_bound(RandomIterator first,RandomIterator last,const T& value,random_access_iterator_tag,Compare comp){
+        auto len = last - first;
+        auto half = len;
+        RandomIterator middle;
+        while(len > 0){
+            half = len >> 1;
+            middle = first + half;
+            if(comp(*middle,value)){
+                first = middle + 1;
+                len = len - half - 1;
+            }else{
+                len = half;
+            }
+        }
+        return first;
+    }
+
+    template<class ForwardIterator,class T,class Compare>
+    ForwardIterator lower_bound(ForwardIterator first,ForwardIterator last,const T& value,Compare comp){
+        return XinSTL::__lower_bound(first,last,value,iterator_category(first),comp);
+    }
+
+    //****************************************************************************
+    //upper_bound
+    //在[first,last)中查找第一个大于value的元素
+    //并返回指向它的迭代器，若没有则返回last
+
+    //辅助函数的forward_iterator_tag版本
+    template<class ForwardIterator,class T>
+    ForwardIterator __upper_bound(ForwardIterator first,ForwardIterator last,const T& value,forward_iterator_tag){
+        auto len = XinSTL::distance(first,last);
+        auto half = len;
+        ForwardIterator middle;
+        while(len > 0){
+            half = len >> 1;
+            middle = first;
+            XinSTL::advance(middle,half);
+            if(value < *middle){
+                len = half;
+            }else{
+                first = middle;
+                first++;
+                len = len - half - 1;
+            }
+        }
+        return first;
+    }
+
+    //辅助函数的random_access_iterator_tag版本
+    template<class RandomIterator,class T>
+    RandomIterator __upper_bound(RandomIterator first,RandomIterator last,const T& value,random_access_iterator_tag){
+        auto len = last - first;
+        auto half = len;
+        RandomIterator middle;
+        while(len > 0){
+            half = len >> 1;
+            middle = first + half;
+            if(value < *middle){
+                len = half;
+            }else{
+                first = middle + 1;
+                len = len - half - 1;
+            }
+        }
+        return first;
+    }
+
+    template<class ForwardIterator,class T>
+    ForwardIterator upper_bound(ForwardIterator first,ForwardIterator last,const T& value){
+        return XinSTL::__upper_bound(first,last,value,iterator_category(first));
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    //辅助函数的forward_iterator_tag
+    template<class ForwardIterator,class T,class Compare>
+    ForwardIterator __upper_bound(ForwardIterator first,ForwardIterator last,const T& value,forward_iterator_tag,Compare comp){
+        auto len = XinSTL::distance(first,last);
+        auto half = len;
+        ForwardIterator middle;
+        while(len > 0){
+            half = len >> 1;
+            middle = first;
+            XinSTL::advance(middle,half);
+            if(comp(value,*middle)){
+                len = half;
+            }else{
+                first = middle;
+                first++;
+                len = len - half - 1;
+            }
+        }
+        return first;
+    }
+
+    //辅助函数的random_iterator_tag版本
+    template<class RandomIterator,class T,class Compare>
+    RandomIterator __upper_bound(RandomIterator first,RandomIterator last,const T& value,random_access_iterator_tag,Compare comp){
+        auto len = last - first;
+        auto half = len;
+        RandomIterator middle;
+        while(len > 0){
+            half = len >> 1;
+            middle = first + half;
+            if(comp(value,*middle)){
+                len = half;
+            }else{
+                first = middle + 1;
+                len = len - half - 1;
+            }
+        }
+        return first;
+    }
+
+    template<class ForwardIterator,class T,class Compare>
+    ForwardIterator upper_bound(ForwardIterator first,ForwardIterator last,const T& value,Compare comp){
+        return XinSTL::__upper_bound(first,last,value,iterator_category(first),comp);
+    }
+
+    //***************************************************************************
+    //binary_search
+    //二分查找，如果在[first,last)内有等同于value的元素
+    //返回true，否则，返回false
+    template<class ForwardIterator,class T>
+    bool binary_search(ForwardIterator first,ForwardIterator last,const T& value){
+        auto i = XinSTL::lower_bound(first,last,value);
+        return i != last && !(value < *i);
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    template<class ForwardIterator,class T,class Compare>
+    bool binary_search(ForwardIterator first,ForwardIterator last,const T& value,Compare comp){
+        auto i = XinSTL::lower_bound(first,last,value);
+        return i != last && !comp(value,*i);
+    }
+
+    //****************************************************************************
+    //equal_range
+    //查找[first,last)区间中与value相等的元素所形成的区间
+    //返回一对迭代器指向区间首位
+    //第一个迭代器指向第一个不小于value的元素，第一个迭代器指向第一个大于value的元素
+
+    //辅助函数的forward_iterator_tag版本
+    template<class ForwardIterator,class T>
+    XinSTL::pair<ForwardIterator,ForwardIterator>
+    equal_range_dispatch(ForwardIterator first,ForwardIterator last,const T& value,forward_iterator_tag){
+        auto len = XinSTL::distance(first,last);
+        auto half = len;
+        ForwardIterator middle,left,right;
+        while(len > 0){
+            half = len >> 1;
+            middle = first;
+            XinSTL::advance(middle,half);
+            if(*middle < value){
+                first = middle;
+                first++;
+                len = len - half - 1;
+            }else if(value < *middle){
+                len = half;
+            }else{
+                left = XinSTL::lower_bound(first,last,value);
+                XinSTL::advance(first,len);
+                middle++;
+                right = XinSTL::upper_bound(middle,first,value);
+                return XinSTL::pair<ForwardIterator,ForwardIterator>(left,right);
+            }
+        }
+        return XinSTL::pair<ForwardIterator,ForwardIterator>(last,last);
+    }
+
+    //辅助函数equal_range_dispatch的random_access_iterator_tag版本
+    template<class RandomIterator,class T>
+    XinSTL::pair<RandomIterator,RandomIterator>
+    equal_range_dispatch(RandomIterator first,RandomIterator last,const T& value,random_access_iterator_tag){
+        auto len = last - first;
+        auto half = len;
+        RandomIterator middle,left,right;
+        while(len > 0){
+            half = len >> 1;
+            middle = first + half;
+            if(*middle < value){
+                first = middle + 1;
+                len = len - half - 1;
+            }else if(value < *middle){
+                len = half;
+            }else{
+                left = XinSTL::lower_bound(first,middle,value);
+                middle++;
+                right = XinSTL::upper_bound(middle,first+len,value);
+                return XinSTL::pair<RandomIterator,RandomIterator>(left,right);
+            }
+        }
+        return XinSTL::pair<RandomIterator,RandomIterator>(last,last);
+    }
+
+    template<class ForwardIterator,class T>
+    XinSTL::pair<ForwardIterator,ForwardIterator>
+    equal_range(ForwardIterator first,ForwardIterator last,const T& value){
+        return XinSTL::equal_range_dispatch(first,last,iterator_category(first));
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    //辅助函数的forward_iterator版本
+    template<class ForwardIterator,class T,class Compare>
+    XinSTL::pair<ForwardIterator,ForwardIterator>
+    equal_range_dispatch(ForwardIterator first,ForwardIterator last,const T& value,forward_iterator_tag,Compare comp){
+        auto len = XinSTL::distance(first,last);
+        auto half = len;
+        ForwardIterator middle,left,right;
+        while(len > 0){
+            half = len >> 1;
+            middle = first;
+            XinSTL::advance(middle,half);
+            if(comp(*middle,value)){
+                first = middle;
+                first++;
+                len = len - half - 1;
+            }else if(comp(value,*middle)){
+                len = half;
+            }else{
+                left = XinSTL::lower_bound(first,last,value,comp);
+                XinSTL::advance(first,len);
+                middle++;
+                right = XinSTL::upper_bound(middle,first,value,comp);
+                return XinSTL::pair<ForwardIterator,ForwardIterator>(left,right);
+            }
+        }
+        return XinSTL::pair<ForwardIterator,ForwardIterator>(last,last);
+    }
+
+    //辅助函数的random_access_iterator版本
+    template<class RandomIterator,class T,class Compare>
+    XinSTL::pair<RandomIterator,RandomIterator>
+    equal_range_dispatch(RandomIterator first,RandomIterator last,const T& value,random_access_iterator_tag,Compare comp){
+        auto len = last - first;
+        auto half = len;
+        RandomIterator middle,left,right;
+        while (len > 0){
+           half = len >> 1;
+           middle = first + half;
+           if(comp(*middle,value)){
+                first = middle + 1;
+                len = len - half - 1;
+           }else if(comp(value,*middle)){
+                len = half;
+           }else{
+                left = XinSTL::lower_bound(first,middle,value,comp);
+                middle++;
+                right = XinSTL::upper_bound(middle,first+len,value,comp);
+                return XinSTL::pair<RandomIterator,RandomIterator>(left,right);
+           }
+        }
+        return XinSTL::pair<RandomIterator,RandomIterator>(last,last);
+    }
+
+    template<class ForwardIterator,class T,class Compare>
+    XinSTL::pair<ForwardIterator,ForwardIterator>
+    equal_range_dispatch(ForwardIterator first,ForwardIterator last,const T& value,Compare comp){
+        return XinSTL::equal_range_dispatch(first,last,value,iterator_category(first),comp);
+    }
+
+    //****************************************************************************
+    //generate
+    //将函数对象gen的运算结果对[first,last)内的每个元素赋值
+    template<class ForwardIterator,class Generator>
+    void generate(ForwardIterator first,ForwardIterator last,Generator gen){
+        for(;first != last;first++){
+            *first = gen();
+        }
+    }
+
+    //***************************************************************************
+    //generate_n
+    //用函数对象gen连续对n个元素赋值
+    template<class ForwardIterator,class Size,class Generator>
+    void generate_n(ForwardIterator first,Size n,Generator gen){
+        for(;n > 0;n--,first++){
+            *first = gen();
+        }
+    }
+
+    //****************************************************************************
+    //includes
+    //判断序列1是否包含序列2
+    template<class InputIterator1,class InputIterator2>
+    bool includes(InputIterator1 first1,InputIterator1 last1,InputIterator2 first2,InputIterator2 last2){
+        while(first1 != last1 && first2 != last2){
+            if(*first2 < *first1){
+                return false;
+            }else if(*first1 < *first2){
+                first1++;
+            }else{
+                first1++;
+                first2++;
+            }
+        }
+        return first2 == last2;
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    template<class InputIterator1,class InputIterator2,class Compare>
+    bool includes(InputIterator1 first1,InputIterator1 last1,InputIterator2 first2,InputIterator2 last2,Compare comp){
+        while(first1 != last1 && first2 != last2){
+            if(comp(*first2,*first1)){
+                return false;
+            }else if(comp(*first1,*first2)){
+                first1++;
+            }else{
+                first1++;
+                first2++;
+            }
+        }
+        return first2 == last2;
+    }
 }
+

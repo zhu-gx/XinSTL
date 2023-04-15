@@ -794,5 +794,118 @@ namespace XinSTL{
         }
         return first2 == last2;
     }
+
+    //***************************************************************************
+    //is_heap
+    //检查[first,last)内的元素是否为一个堆，如果是，返回true
+    template<class RandomIterator>
+    bool is_heap(RandomIterator first,RandomIterator last){
+        auto n = XinSTL::distance(first,last);
+        auto parent = 0;
+        for(auto child = 1;child < n;child++){
+            if(first[parent] < first[child]){
+                return false;
+            }
+            if((child & 1) == 0){
+                //该孩子与父母均已核验完成
+                //核验下一节点
+                parent++;
+            }
+        }
+        return true;
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    template<class RandomIterator,class Compare>
+    bool is_heap(RandomIterator first,RandomIterator last,Compare comp){
+        auto n = XinSTL::distance(first,last);
+        auto parent = 0;
+        for(auto child = 1;child < n;child++){
+            if(comp(first[parent],first[child])){
+                return false;
+            }
+            if((child & 1) == 0){
+                parent++;
+            }
+        }
+        return true;
+    }
+
+    //***************************************************************************
+    //is_sorted
+    //检查[first,last)内的元素是否升序，如果是升序，返回true
+    template<class ForwardIterator>
+    bool is_sorted(ForwardIterator first,ForwardIterator last){
+        if(first == last){
+            return true;
+        }
+        auto next = first;
+        next++;
+        for(;next != last;first = next,next++){
+            if(*next < *first){
+                return false;
+            }
+        }
+        return true;
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    template<class ForwardIterator,class Compare>
+    bool is_sorted(ForwardIterator first,ForwardIterator last,Compare comp){
+        if(first == last){
+            return true;
+        }
+        auto next = first;
+        next++;
+        for(;next != last;first = next,next++){
+            if(comp(*next,*first)){
+                return false;
+            }
+        }
+        return true;
+    }
+
+    //***************************************************************************
+    //median
+    //找出三个值的中间值
+    template<class T>
+    const T& median(const T& left,const T& mid,const T& right){
+        if(left < mid){
+            if(mid < right){
+                return mid;//left<mid<right
+            }else if(left < right){
+                return right;//left < right <= mid
+            }else{
+                return left;//right <= left < mid
+            }
+        }else if(left < right){
+            return left;//mid <= left < right
+        }else if(mid < right){
+            return right;//mid < right <= left
+        }
+        return mid;//right <= mid <= left
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    template<class T,class Compare>
+    const T& median(const T& left,const T& mid,const T& right,Compare comp){
+        if(comp(left,mid)){
+            if(comp(mid,right)){
+                return mid;
+            }else if(comp(left,right)){
+                return right;
+            }else{
+                return left;
+            }
+        }else if(comp(left,right)){
+            return left;
+        }else if(comp(mid,right)){
+            return right;
+        }else{
+            return mid;
+        }
+    }
+
+    
 }
 

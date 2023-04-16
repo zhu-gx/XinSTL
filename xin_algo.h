@@ -906,6 +906,154 @@ namespace XinSTL{
         }
     }
 
+    //****************************************************************************
+    //max_element
+    //返回一个迭代器，指向序列中最大的元素
+    template<class ForwardIteraor>
+    ForwardIteraor max_element(ForwardIteraor first,ForwardIteraor last){
+        if(first == last){
+            return first;
+        }
+        auto result = first;
+        while(++first != last){
+            if(*result < *first){
+                result = first;
+            }
+        }
+        return result;
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    template<class ForwardIterator,class Compare>
+    ForwardIterator max_element(ForwardIterator first,ForwardIterator last,Compare comp){
+        if(first == last){
+            return first;
+        }
+        auto result = first;
+        while(++first != last){
+            if(comp(*result,*first)){
+                result = first;
+            }
+        }
+        return result;
+    }
+
+    //***************************************************************************
+    //min_element
+    //返回一个迭代器，指向序列中最小的元素
+    template<class ForwardIterator>
+    ForwardIterator min_element(ForwardIterator first,ForwardIterator last){
+        if(first == last){
+            return first;
+        }
+        auto result = first;
+        while(++first != last){
+            if(*first < *result){
+                result = first;
+            }
+        }
+        return result;
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    template<class ForwardIterator,class Compare>
+    ForwardIterator min_element(ForwardIterator first,ForwardIterator last,Compare comp){
+        if(first == last){
+            return first;
+        }
+        auto result = first;
+        while(++first != last){
+            if(comp(*first,*result)){
+                result = first;
+            }
+        }
+        return result;
+    }
+
+    //***************************************************************************
+    //swap_ranges
+    //将[first1,last1)从first2开始，交换相同个数元素
+    //交换的区间长度必须相同，两个序列不能互相重叠
+    //返回一个迭代器指向序列二最后一个被交换元素的下一位
+    template<class ForwardIterator1,class ForwardIterator2>
+    ForwardIterator2 swap_ranges(ForwardIterator1 first1,ForwardIterator1 last1,ForwardIterator2 first2){
+        for(;first1 != last1;first1++,first2++){
+            XinSTL::iter_swap(first1,first2);
+        }
+        return first2;
+    }
+
+    //***************************************************************************
+    //transform
+    //第一个版本以函数对象unary_op作用于[first,last)中的每个元素
+    //并将结果保存至result中
+    //第二个版本以函数对象binary_op作用域两个序列[first1,last1)、[first2,last2)的相同位置
+    template<class InputIterator,class OutputIterator,class UnaryOperation>
+    OutputIterator transform(InputIterator first,InputIterator last,OutputIterator result,UnaryOperation unary_op){
+        for(;first != last;first++,result++){
+            *result = unary_op(*first);
+        }
+        return result;
+    }
+
+    template<class InputIterator1,class InputIterator2,class OutputIterator,class BinaryOperation>
+    OutputIterator transform(InputIterator1 first1,InputIterator1 last1,InputIterator2 first2,OutputIterator result,BinaryOperation binary_op){
+        for(;first1 != last1;first1++,first2++,result++){
+            *result = binary_op(*first1,*first2);
+        }
+        return result;
+    }
+
+    //**************************************************************************
+    //remove_copy
+    //移除区间内指定value相等的元素
+    //并将结果复制到以result标示起始位置的容器上
+    template<class InputIterator,class OutputIterator,class T>
+    OutputIterator remove_copy(InputIterator first,InputIterator last,OutputIterator result,const T& value){
+        for(;first != last;first++){
+            if(*first != value){
+                *result++ = *first;
+            }
+        }
+        return result;
+    }
+
+    //***********************************************************************
+    //remove
+    //移除所有与指定value相等的元素
+    //并不从容器中删除这些元素，所以remove和remove_if不适用于array
+    template<class ForwradIterator,class T>
+    ForwradIterator remove(ForwradIterator first,ForwradIterator last,const T& value){
+        first = XinSTL::find(first,last,value);//利用find找出第一个匹配的地方
+        auto next = first;
+        return first == last ? first : XinSTL::remove_copy(++next,last,first,value);
+    }
+
+    //*************************************************************************
+    //remove_copy_if
+    //移除区间内所有令一元操作unary_pred为true的元素
+    //并将结果复制到以result为起始位置的容器上
+    template<class InputIterator,class OutputIterator,class UnaryPredicate>
+    OutputIterator remove_copy_if(InputIterator first,InputIterator last,OutputIterator result,UnaryPredicate unary_pred){
+        for(;first != last;first++){
+            if(!unary_pred(*first)){
+                *result = *first;
+                result++;
+            }
+        }
+        return result;
+    }
+
+    //**************************************************************************
+    //remove_if
+    //移除区间内所有令一元操作unary_pred为true的元素
+    template<class ForwardIterator,class UnaryPredicate>
+    ForwardIterator remove_if(ForwardIterator first,ForwardIterator last,UnaryPredicate unary_pred){
+        first = XinSTL::find_if(first,last,unary_pred);//利用find_if找出第一个匹配的地方
+        auto next = first;
+        return first == last ? first : XinSTL::remove_copy_if(++next,last,first,unary_pred);
+    }
+
     
 }
 

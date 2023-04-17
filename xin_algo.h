@@ -1054,6 +1054,235 @@ namespace XinSTL{
         return first == last ? first : XinSTL::remove_copy_if(++next,last,first,unary_pred);
     }
 
+    //***************************************************************************
+    //replace
+    //将区间内所有的old_value都以new_value替代
+    template<class ForwadIterator,class T>
+    void replace(ForwadIterator first,ForwadIterator last,const T& old_value,const T& new_value){
+        for(;first != last;first++){
+            if(*first = old_value){
+                *first = new_value;
+            }
+        }
+    }
+
+    //***************************************************************************
+    //replace_copy
+    //行为与replace类似
+    //不同的是将结果复制到result所指的容器中，原序列没有改变
+    template<class InputIterator,class OutputIterator,class T>
+    OutputIterator replace_copy(InputIterator first,InputIterator last,OutputIterator result,const T& old_value,const T& new_value){
+        for(;first != last;first++,result++){
+            *result = *first == old_value ? new_value : *first;
+        }
+        return result;
+    }
+
+    //**************************************************************************
+    //replace_copy_if
+    //行为与replace_if类似，不同的是将结果复制到result所指的容器中
+    //原序列没有改变
+    template<class InputIterator,class OutputIterator,class UnaryPredicate,class T>
+    OutputIterator replace_copy_if(InputIterator first,InputIterator last,OutputIterator result,UnaryPredicate unary_pred,const T& new_value){
+        for(;first != last;first++,result++){
+            *result = unary_pred(*first) ? new_value : *first;
+        }
+        return result;
+    }
+
+    //*************************************************************************
+    //replace_if
+    //将区间内所有令一元操作unary_pred为true的元素都用new_value替代
+    template<class ForwardIterator,class UnaryPrediacate,class T>
+    void replace_if(ForwardIterator first,ForwardIterator last,UnaryPrediacate unary_pred,const T& new_value){
+        for(;first != last;first++){
+            if(unary_pred(*first)){
+                *first = new_value;
+            }
+        }
+    }
+
+    //***************************************************************************
+    //reverse
+    //将[first,last)区间内的元素反转
+
+    //reverse_dispatch的bidirectional_iterator_tag版本
+    template<class BidirectionalIterator>
+    void reverse_dispatch(BidirectionalIterator first,BidirectionalIterator last,bidirectional_iterator_tag){
+        while(true){
+            if(first == last || first == --last){
+                return;
+            }
+            XinSTL::iter_swap(first++,last);
+        }
+    }
+
+    //reverse_dispatch的random_access_iterator_tag版本
+    template<class RandomIterator>
+    void reverse_dispatch(RandomIterator first,RandomIterator last,random_access_iterator_tag){
+        while(first < last){
+            XinSTL::iter_swap(first++,--last);
+        }
+    }
+
+    template<class Bidirectional>
+    void reverse(Bidirectional first,Bidirectional last){
+        XinSTL::reverse_dispatch(first,last,iterator_category(first));
+    }
+
+    //**************************************************************************
+    //reverse_copy
+    //行为与reverse类似，不同的是将结果复制到result所指容器中
+    template<class BidirectionalIterator,class OutputIterator>
+    OutputIterator reverse_copy(BidirectionalIterator first,BidirectionalIterator last,OutputIterator result){
+        while(first != last){
+            last--;
+            *result = *last;
+            ++result;
+        }
+        return result;
+    }
+
+    //***************************************************************************
+    //random_shuffle
+    //将[first,last)内的元素次序随机重排
+    //重载版本使用一个产生随机数的函数对象rand
+    template<class RandomIterator>
+    void random_shuffle(RandomIterator first,RandomIterator last){
+        if(first == last){
+            return;
+        }
+        srand((unsigned)time(0));
+        for(auto i = first + 1;i != first;i++){
+            XinSTL::iter_swap(i,first + (rand()%(i-first+1)));
+        }
+    }
+
+    //重载版本使用一个产生随机数的函数对象rand
+    template<class RandomIterator,class RandomNumberGenerator>
+    void random_shuffle(RandomIterator first,RandomIterator last,RandomNumberGenerator& rand){
+        if(first == last){
+            return;
+        }
+        auto len = XinSTL::distance(first,last);
+        for(auto i = first + 1;i != last;i++){
+            XinSTL::iter_swap(i,first+(rand(i-first+1)%len));
+        }
+    }
+
+    //**************************************************************************
+    //rotate
+    //将[first,middle)内的元素和[middle,last)内的元素互换
+    //可以交换两个长度不同的区间
+    //返回交换后middle的位置
     
+    //rotate_dispatch的forward_iterator_tag版本
+    template<class ForwardIterator>
+    ForwardIterator rotate_dispatch(ForwardIterator first,ForwardIterator middle,ForwardIterator last,forward_iterator_tag){
+        auto first2 = middle;
+        do{
+            XinSTL::swap(*first++,*first2++);
+            if(first == middle){
+                middle = first2;
+            }
+        }while(first2 != last);//后半段移到前面
+
+        auto new_middle = first;//迭代器后面的位置
+        first2 = middle;
+        while(first2 != last){
+            //调整剩余元素
+            XinSTL::swap(*first++,*first2++);
+            if(first == middle){
+                middle = first2;
+            }else if(first2 == last){
+                first2 = middle;
+            }
+        }
+        return new_middle;
+    }
+
+    //rotate_dispatch的bidirectional_iterator_tag版本
+    template<class BidirectionalIterator>
+    BidirectionalIterator rotate_dispatch(BidirectionalIterator first,BidirectionalIterator middle,BidirectionalIterator last,bidirectional_iterator_tag){
+        XinSTL::reverse_dispatch(first,middle,bidirectional_iterator_tag());
+        XinSTL::reverse_dispatch(middle,last,bidirectional_iterator_tag());
+        while(first != middle && middle != last){
+            XinSTL::swap(*first++,*--last);
+        }
+        if(first == middle){
+            XinSTL::reverse_dispatch(middle,last,bidirectional_iterator_tag());
+            return last;
+        }else{
+            XinSTL::reverse_dispatch(first,middle,bidirectional_iterator_tag());
+            return first;
+        }
+    }
+
+    //求最大公因子
+    template<class EuclideanRingElement>
+    EuclideanRingElement rgcd(EuclideanRingElement m,EuclideanRingElement n){
+        while(n != 0){
+            auto t = m % n;
+            m = n;
+            n = t;
+        }
+        return m;
+    }
+
+    //rotate_dispatch的random_access_iterator_tag版本
+    template<class RandomIterator>
+    RandomIterator rotate_dispatch(RandomIterator first,RandomIterator middle,RandomIterator last,random_access_iterator_tag){
+        //因为是random access iterator，我们可以确定每个元素的位置
+        auto n = last - first;
+        auto l = middle - first;
+        auto r = n - 1;
+        auto result = first + (last - middle);
+        if(l == r){
+            XinSTL::swap_ranges(first,middle,middle);
+            return result;
+        }
+        auto cycle_times = rgcd(n,1);
+        for(auto i = 0;i < cycle_times;i++){
+            auto temp = *first;
+            auto p = first;
+            if(l < r){
+                for(auto j = 0; j < r/cycle_times;j++){
+                    if(p > first + r){
+                        *p = *(p - r);
+                        p -= r;
+                    }
+                    *p = *(p-r);
+                    p -= r;
+                }
+                *p = *(p+1);
+                p += 1;
+            }else{
+                for(auto j = 0;j < 1/cycle_times-1;j++){
+                    if(p < last - 1){
+                        *p = *(p-1);
+                        p += 1;
+                    }
+                    *p = *(p-r);
+                    p -= r;
+                }
+            }
+            *p = temp;
+            first++;
+        }
+        return result;
+    }
+
+    template<class ForwardIterator>
+    ForwardIterator rotate(ForwardIterator first,ForwardIterator middle,ForwardIterator last){
+        if(first == middle){
+            return last;
+        }
+        if(middle == last){
+            return first;
+        }
+        return XinSTL::rotate_dispatch(first,middle,last,iterator_category(first));
+    }
+    
+
 }
 

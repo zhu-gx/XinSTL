@@ -1283,6 +1283,244 @@ namespace XinSTL{
         return XinSTL::rotate_dispatch(first,middle,last,iterator_category(first));
     }
     
+    //**************************************************************************
+    //rotate_copy
+    //行为与rotate类似，不同的是将结果复制到result所指的容器中
+    template<class ForwardIterator,class OutputIterator>
+    ForwardIterator rotate_copy(ForwardIterator first,ForwardIterator middle,ForwardIterator last,OutputIterator result){
+        return XinSTL::copy(first,middle,XinSTL::copy(middle,last,result));
+    }
 
+    //***************************************************************************
+    //is_permutation
+    //判断[first1,last1)是否为[first2,last2)的排列组合
+    template<class ForwardIterator1,class ForwardIterator2,class BinaryPred>
+    bool is_permutation_aux(ForwardIterator1 first1,ForwardIterator1 last1,ForwardIterator2 first2,ForwardIterator2 last2,BinaryPred pred){
+        constexpr bool is_ra_it = XinSTL::is_random_access_iterator<ForwardIterator1>::value && XinSTL::is_random_access_iterator<ForwardIterator2>::value;
+        if(is_ra_it){
+            auto len1 = last1 - first1;
+            auto len2 = last2 - first2;
+            if(len1 != len2){
+                return false;
+            }
+        }
+
+        //先找出相同的前缀段
+        for(;first1 != last1 && first2 != last2;first1++,(void)first2++){
+            if(!pred(*first1,*first2)){
+                break;
+            }
+        }
+        if(is_ra_it){
+            if(first1 == last1){
+                return true;
+            }
+        }else{
+            auto len1 = XinSTL::distance(first1,last1);
+            auto len2 = XinSTL::distance(first2,last2);
+            if(len1 == 0 && len2 == 0){
+                return true;
+            }
+            if(len1 != len2){
+                return false;
+            }
+        }
+
+        //判断剩余部分
+        for(auto i = first1;i != last1;i++){
+            bool is_repeated = false;
+            for(auto j = first1;j != i;j++){
+                if(pred(*i,*j)){
+                    is_repeated = true;
+                    break;
+                }
+            }
+
+            if(!is_repeated){
+                //计算*i在[first2,last2)的数目
+                auto c2 = 0;
+                for(auto j = first2;j != last2;j++){
+                    if(pred(*i,*j)){
+                        c2++;
+                    }
+                }
+                if(c2 == 0){
+                    return false;
+                }
+
+                //计算*i在[first1,last1)的数目
+                auto c1 = 1;
+                auto j = i;
+                for(j++;j != last1;j++){
+                    if(pred(*i,*j)){
+                        c1++;
+                    }
+                }
+                if(c1 != c2){
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    template<class ForwardIterator1,class ForwardIterator2,class BinaryPred>
+    bool is_permutation(ForwardIterator1 first1,ForwardIterator1 last1,ForwardIterator2 first2,ForwardIterator2 last2,BinaryPred pred){
+        return is_permutation_aux(first1,last1,first2,last2,pred);
+    }
+
+    template<class ForwardIterator1,class ForwardIterator2>
+    bool is_permutation(ForwardIterator1 first1,ForwardIterator1 last1,ForwardIterator2 first2,ForwardIterator2 last2){
+        typedef typename iterator_traits<ForwardIterator1>::value_type v1;
+        typedef typename iterator_traits<ForwardIterator2>::value_type v2;
+        static_assert(std::is_same<v1,v2>::value,"the type should be same in XinSTL::is_permutation");
+        return is_permutation_aux(first1,last1,first2,last2,XinSTL::equal_to<v1>());
+    }
+
+    //***************************************************************************
+    //next_permutation
+    //取得[first,last)所标示序列的下一个排列组合
+    //如果没有下一个排序组合，返回false，否则返回true
+    template<class BidirentionalIterator>
+    bool next_permutation(BidirentionalIterator first,BidirentionalIterator last){
+        auto i = last;
+        if(first == last || first == --i){
+            return false;
+        }
+
+        while(true){
+            auto j = i;
+            if(*--i < *j){
+                //找到第一对小于关系的元素
+                auto k = last;
+                while(!(*i<*--k)){}
+                XinSTL::iter_swap(i,k);//交换i,k所指元素
+                XinSTL::reverse(j,last);//将j之后的所有元素反转
+                return true;
+            }
+            if(i == first){
+                XinSTL::reverse(first,last);
+                return false;
+            }
+        }
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    template <class BidirectionalIter, class Compared>
+    bool next_permutation(BidirectionalIter first, BidirectionalIter last, Compared comp)
+    {
+        auto i = last;
+        if (first == last || first == --i)
+            return false;
+        for (;;)
+        {
+            auto ii = i;
+            if (comp(*--i, *ii))
+            {
+                auto j = last;
+                while (!comp(*i, *--j)) {}
+                XinSTL::iter_swap(i, j);       // 交换 i，j 所指元素
+                XinSTL::reverse(ii, last);     // 将 ii 之后的所有元素反转
+                return true;
+            }
+            if (i == first)
+            {
+            XinSTL::reverse(first, last);
+            return false;
+            }
+        }
+    }
+
+    //******************************************************************************
+    // prev_permutation
+    // 取得[first, last)所标示序列的上一个排列组合
+    //如果没有上一个排序组合，返回 false，否则返回 true
+    template <class BidirectionalIter>
+    bool prev_permutation(BidirectionalIter first, BidirectionalIter last)
+    {
+        auto i = last;
+        if (first == last || first == --i)
+            return false;
+        for (;;)
+        {
+            auto ii = i;
+            if (*ii < *--i)
+            {                 // 找到第一对大于关系的元素
+                auto j = last;
+                while (!(*--j < *i)) {}
+                XinSTL::iter_swap(i, j);       // 交换i，j
+                XinSTL::reverse(ii, last);     // 将 ii 之后的所有元素反转
+                return true;
+            }
+            if (i == first)
+            {
+                XinSTL::reverse(first, last);
+                return false;
+            }
+        }
+    }
+
+    // 重载版本使用函数对象 comp 代替比较操作
+    template <class BidirectionalIter, class Compared>
+    bool prev_permutation(BidirectionalIter first, BidirectionalIter last, Compared comp)
+    {
+        auto i = last;
+        if (first == last || first == --i)
+            return false;
+        for (;;)
+        {
+            auto ii = i;
+            if (comp(*ii, *--i))
+            {
+                auto j = last;
+                while (!comp(*--j, *i)) {}
+                XinSTL::iter_swap(i, j);       // 交换i，j
+                XinSTL::reverse(ii, last);     // 将 ii 之后的所有元素反转
+                return true;
+            }
+            if (i == first)
+            {
+                XinSTL::reverse(first, last);
+                return false;
+            }
+        }
+    }
+
+    //*************************************************************************
+    //merge
+    //将两个经过排序的集合S1和S2合并起来置于另一段空间
+    //返回一个迭代器指向最后一个元素的下一个位置
+    template<class InputIterator1,class InputIteartor2,class OutputIterator>
+    OutputIterator merge(InputIterator1 first1,InputIterator1 last1,InputIteartor2 first2,InputIteartor2 last2,OutputIterator result){
+        while(first1 != last1 && first2 != last2){
+            if(*first2 < *first1){
+                *result = *first2;
+                first2++;
+            }else{
+                *result = *first1;
+                first2++;
+            }
+            result++;
+        }
+        return XinSTL::copy(first2,last2,XinSTL::copy(first1,last1,result));
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    template<class InputIterator1,class InputIterator2,class OutputIterator,class Compare>
+    OutputIterator merge(InputIterator1 first1,InputIterator1 last1,InputIterator2 first2,InputIterator2 last2,OutputIterator result,Compare comp){
+        while(first1 != last1 && first2 != last2){
+            if(comp(*first2,*first1)){
+                *result = *first2;
+                first2++;
+            }else{
+                *result = *first1;
+                first1++;
+            }
+            result++;
+        }
+        return XinSTL::copy(first2,last2,XinSTL::copy(first1,last1,result));
+    }
+
+    
 }
 

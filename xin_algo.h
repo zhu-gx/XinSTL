@@ -1521,6 +1521,158 @@ namespace XinSTL{
         return XinSTL::copy(first2,last2,XinSTL::copy(first1,last1,result));
     }
 
-    
+    //**************************************************************************
+    //inplace_merge
+    //把连接在一起的两个有序序列结合成单一序列并保持有序
+
+    //没有缓冲器的情况下合并
+    template<class BidirectionalIterator,class Distance>
+    void merge_without_buffer(BidirectionalIterator first,BidirectionalIterator middle,BidirectionalIterator last,Distance len1,Distance len2){
+        if(len1 == 0 || len2 == 0){
+            return;
+        }
+
+        if(len1 + len2 == 2){
+            if(*middle < *first){
+                XinSTL::iter_swap(first,middle);
+            }
+            return;
+        }
+
+        auto first_cut = first;
+        auto second_cut = middle;
+        Distance len11 = 0;
+        Distance len22 = 0;
+        if(len1 > len2){
+            //序列一较长，找到序列一的中点
+            len11 = len1 >> 1;
+            XinSTL::advance(first_cut,len11);
+            second_cut = XinSTL::lower_bound(middle,last,*first_cut);
+            len22 = XinSTL::distance(middle,second_cut);
+        }else{
+            //序列二较长，找到序列二的重点
+            len22 = len2 >> 1;
+            XinSTL::advance(second_cut,len22);
+            first_cut = XinSTL::upper_bound(first,middle,*second_cut);
+            len11 = XinSTL::distance(first,first_cut);
+        }
+        auto new_middle = XinSTL::rotate(first_cut,middle,second_cut);
+        XinSTL::merge_without_buffer(first,first_cut,new_middle,len11,len22);
+        XinSTL::merge_without_buffer(new_middle,second_cut,last,len1-len11,len2-len22);
+    }
+
+    template<class BidirectionalIterator1,class BidirectionalIterator2>
+    BidirectionalIterator1 merge_backward(BidirectionalIterator1 first1,BidirectionalIterator1 last1,BidirectionalIterator2 first2,BidirectionalIterator2 last2,BidirectionalIterator1 result){
+        if(first1 == last1){
+            return XinSTL::copy_backward(first2,last2,result);
+        }
+        if(first2 == last2){
+            return XinSTL::copy_backward(first1,last1,result);
+        }
+        --last1;
+        --last2;
+        while(true){
+            if(*last2 < *last1){
+                *--result = -last1;
+                if(first1 == last1){
+                    return XinSTL::copy_backward(first2,++last2,result);
+                }
+                --last1;
+            }else{
+                *--result = *last2;
+                if(first2 == last2){
+                    return XinSTL::copy_backward(first1,++last1,result);
+                }
+                --last2;
+            }
+        }
+    }
+
+    template <class BidirectionalIter1, class BidirectionalIter2, class Distance>
+    BidirectionalIter1
+    rotate_adaptive(BidirectionalIter1 first, BidirectionalIter1 middle,
+                    BidirectionalIter1 last, Distance len1, Distance len2,
+                    BidirectionalIter2 buffer, Distance buffer_size)
+    {
+        BidirectionalIter2 buffer_end;
+        if (len1 > len2 && len2 <= buffer_size)
+        {
+            buffer_end = XinSTL::copy(middle, last, buffer);
+            XinSTL::copy_backward(first, middle, last);
+            return XinSTL::copy(buffer, buffer_end, first);
+        }
+        else if (len1 <= buffer_size)
+        {
+            buffer_end = XinSTL::copy(first, middle, buffer);
+            XinSTL::copy(middle, last, first);
+            return XinSTL::copy_backward(buffer, buffer_end, last);
+        }
+        else
+        {
+            return XinSTL::rotate(first, middle, last);
+        }
+    }
+
+    // 有缓冲区的情况下合并
+    template <class BidirectionalIter, class Distance, class Pointer>
+    void merge_adaptive(BidirectionalIter first, BidirectionalIter middle,
+                        BidirectionalIter last, Distance len1, Distance len2,
+                        Pointer buffer, Distance buffer_size)
+        {
+        // 区间长度足够放进缓冲区
+        if (len1 <= len2 && len1 <= buffer_size)
+        {
+            Pointer buffer_end = XinSTL::copy(first, middle, buffer);
+            XinSTL::merge(buffer, buffer_end, middle, last, first);
+        }
+        else if (len2 <= buffer_size)
+        {
+            Pointer buffer_end = XinSTL::copy(middle, last, buffer);
+            XinSTL::merge_backward(first, middle, buffer, buffer_end, last);
+        }
+        else
+        {  // 区间长度太长，分割递归处理
+            auto first_cut = first;
+            auto second_cut = middle;
+            Distance len11 = 0;
+            Distance len22 = 0;
+            if (len1 > len2)
+            {
+                len11 = len1 >> 1;
+                XinSTL::advance(first_cut, len11);
+                second_cut = XinSTL::lower_bound(middle, last, *first_cut);
+                len22 = XinSTL::distance(middle, second_cut);
+            }
+            else
+            {
+                len22 = len2 >> 1;
+                XinSTL::advance(second_cut, len22);
+                first_cut = XinSTL::upper_bound(first, middle, *second_cut);
+                len11 = XinSTL::distance(first, first_cut);
+            }
+            auto new_middle = XinSTL::rotate_adaptive(first_cut, middle, second_cut,
+                                                    len1 - len11, len22, buffer, buffer_size);
+            XinSTL::merge_adaptive(first, first_cut, new_middle, len11, len22, buffer, buffer_size);
+            XinSTL::merge_adaptive(new_middle, second_cut, last, len1 - len11,
+                                len2 - len22, buffer, buffer_size);
+        }
+    }        
+
+    template <class BidirectionalIter, class T>
+    void inplace_merge_aux(BidirectionalIter first, BidirectionalIter middle,
+                    BidirectionalIter last, T*)
+    {
+        auto len1 = XinSTL::distance(first, middle);
+        auto len2 = XinSTL::distance(middle, last);
+        temporary_buffer<BidirectionalIter, T> buf(first, last);
+        if (!buf.begin())
+        {
+            XinSTL::merge_without_buffer(first, middle, last, len1, len2);
+        }
+        else
+        {
+            XinSTL::merge_adaptive(first, middle, last, len1, len2, buf.begin(), buf.size());
+        }
+    }    
 }
 

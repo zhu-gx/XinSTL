@@ -1673,6 +1673,260 @@ namespace XinSTL{
         {
             XinSTL::merge_adaptive(first, middle, last, len1, len2, buf.begin(), buf.size());
         }
-    }    
+    }
+
+    template<class BidirectionalIterator>
+    void inplace_merge(BidirectionalIterator first,BidirectionalIterator middle,BidirectionalIterator last){
+        if(first == middle || middle == last){
+            return;
+        }
+        XinSTL::inplace_merge_aux(first,middle,last,value_type(first));
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    //没有缓冲区的情况下合并
+    template<class BidirectionalIterator,class Distance,class Compare>
+    void merge_without_buffer(BidirectionalIterator first,BidirectionalIterator middle,BidirectionalIterator last,Distance len1,Distance len2,Compare comp){
+        if(len1 == 0 || len2 == 0){
+            return;
+        }
+        if(len1 + len2 == 2){
+            if(comp(*middle,*first)){
+                XinSTL::iter_swap(first,middle);
+            }
+            return;
+        }
+        auto first_cut = first;
+        auto second_cut = middle;
+        Distance len11 = 0;
+        Distance len22 = 0;
+        if(len1 > len2){
+            len11 = len1 >> 1;
+            XinSTL::advance(first_cut,len11);
+            second_cut = XinSTL::lower_bound(middle,last,*first_cut,comp);
+            len22 = XinSTL::distance(middle,second_cut);
+        }else{
+            len22 = len2 >> 1;
+            XinSTL::advance(second_cut,len22);
+            first_cut = XinSTL::upper_bound(first,middle,*second_cut,comp);
+            len11 = XinSTL::distance(first,first_cut);
+        }
+        auto new_middle = XinSTL::rotate(first_cut,middle,second_cut);
+        XinSTL::merge_without_buffer(first,first_cut,new_middle,len11,len22,comp);
+        XinSTL::merge_without_buffer(new_middle,second_cut,last,len1-len11,len2-len22,comp);
+    }
+
+    template<class BidirectionalIterator1,class BidirectionalIterator2,class Compare>
+    BidirectionalIterator1 merge_backward(BidirectionalIterator1 first1,BidirectionalIterator1 last1,BidirectionalIterator2 first2,BidirectionalIterator2 last2,BidirectionalIterator1 result,Compare comp){
+        if(first1 == last1){
+            return XinSTL::copy_backward(first2,last2,result);
+        }
+        if(first2 == last2){
+            return XinSTL::copy_backward(first1,last1,result);
+        }
+        last1--;
+        last2--;
+        while(true){
+            if(comp(*last2,*last1)){
+                *--result = *last1;
+                if(first1 == last1){
+                    return XinSTL::copy_backward(first2,++last2,result);
+                }
+                --last1;
+            }else{
+                *--result = *last2;
+                if(first2 == last2){
+                    return XinSTL::copy_backward(first1,++last1,result);
+                }
+                --last2;
+            }
+        }
+    }
+
+    //有缓冲区的情况下合并
+    template<class BidirectionalIterator,class Distance,class Pointer,class Compare>
+    void merge_adaptive(BidirectionalIterator first,BidirectionalIterator middle,BidirectionalIterator last,Distance len1,Distance len2,Pointer buffer,Distance buffer_size,Compare comp){
+        //区间长度足够放进缓冲区
+        if(len1 <= len2 && len1 <= buffer_size){
+            Pointer buffer_end = XinSTL::copy(first,middle,buffer);
+            XinSTL::merge(buffer,buffer_end,middle,last,first,comp);
+        }else if(len2 <= buffer_size){
+            Pointer buffer_end = XinSTL::copy(middle,last,buffer);
+            XinSTL::merge_backward(first,middle,buffer,buffer_end,last,comp);
+        }else{
+            //区间长度太长，分割递归处理
+            auto first_cut = first;
+            auto second_cut = middle;
+            Distance len11 = 0;
+            Distance len22 = 0;
+            if(len1 > len2){
+                len11 = len1 >> 1;
+                XinSTL::advance(first_cut,len11);
+                second_cut = XinSTL::lower_bound(middle,last,*first_cut,comp);
+                len22 = XinSTL::distance(middle,second_cut);
+            }else{
+                len22 = len2 >> 1;
+                XinSTL::advance(second_cut,len22);
+                first_cut = XinSTL::upper_bound(first,middle,*second_cut,comp);
+                len11 = XinSTL::distance(first,first_cut);
+            }
+            auto new_middle = XinSTL::rotate_adaptive(first_cut,middle,second_cut,len1-len11,len22,buffer,buffer_size);
+            XinSTL::merge_adaptive(first,first_cut,new_middle,len11,len22,buffer,buffer_size,comp);
+            XinSTL::merge_adaptive(new_middle,second_cut,last,len1-len11,len2-len22,buffer,buffer_size,comp);
+        }
+    }
+
+    template<class BidirectionalIterator,class T,class Compare>
+    void inplace_merge_aux(BidirectionalIterator first,BidirectionalIterator middle,BidirectionalIterator last,T*,Compare comp){
+        auto len1 = XinSTL::distance(first,middle);
+        auto len2 = XinSTL::distance(middle,last);
+        temporary_buffer<BidirectionalIterator,T> buf(first,last);
+        if(!buf.begin()){
+            XinSTL::merge_without_buffer(first,middle,last,len1,len2,comp);
+        }else{
+            XinSTL::merge_adaptive(first,middle,last,len1,len2,buf.begin(),buf.size(),comp);
+        }
+    }
+
+    template<class BidirectionalIterator,class Compare>
+    void inplace_merge(BidirectionalIterator first,BidirectionalIterator middle,BidirectionalIterator last,Compare comp){
+        if(first == middle || middle == last){
+            return;
+        }
+        XinSTL::inplace_merge_aux(first,middle,last,value_type(first),comp);
+    }
+
+    //***************************************************************************
+    //partial_sort
+    //对整个序列做部分排序
+    //保证较小的N个元素以递增顺序置于[first,first+N)中
+
+    //原理
+    //将[first,first+N)设置成heap，然后依次判断后面的元素是否应该加入heap
+    //最后sort_heap,将前N个元素按序排列
+    template<class RandomIterator>
+    void partial_sort(RandomIterator first,RandomIterator middle,RandomIterator last){
+        XinSTL::make_heap(first,middle);
+        for(auto i = middle;i < last;i++){
+            if(*i < *first){
+                XinSTL::pop_heap_aux(first,middle,i,*i,distance_type(first));
+            }
+        }
+        XinSTL::sort_heap(first,middle);
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    template<class RandomIterator,class Compare>
+    void partial_sort(RandomIterator first,RandomIterator middle,RandomIterator last,Compare comp){
+        XinSTL::make_heap(first,middle,comp);
+        for(auto i = middle;i < last;i++){
+            if(comp(*i,*first)){
+                XinSTL::pop_heap_aux(first,middle,i,*i,distance_type(first),comp);
+            }
+        }
+        XinSTL::sort_heap(first,middle,comp);
+    }
+
+    //***************************************************************************
+    //partial_sort_copy
+    //行为与partial_sort类似，不同的是把排序结果复制到result容器中
+    template<class InputIterator,class RandomIterator,class Distance>
+    RandomIterator psort_copy_aux(InputIterator first,InputIterator last,RandomIterator result_first,RandomIterator result_last,Distance*){
+        if(result_first == result_last){
+            return result_last;
+        }
+        auto result_iter = result_first;
+        while(first != last && result_iter != result_last){
+            *result_iter = *first;
+            ++result_iter;
+            ++first;
+        }
+        XinSTL::make_heap(result_first,result_iter);
+        while(first != last){
+            if(*first < *result_first){
+                XinSTL::adjust_heap(result_first,static_cast<Distance>(0),result_iter - result_first,*first);
+            }
+            ++first;
+        }
+        XinSTL::sort_heap(result_first,result_iter);
+        return result_iter;
+    }
+
+    template<class InputIterator,class RandomIterator>
+    RandomIterator partial_sort_copy(InputIterator first,InputIterator last,RandomIterator result_first,RandomIterator result_last){
+        return XinSTL::psort_copy_aux(first,last,result_first,result_last,distance_type(result_first));
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    template<class InputIterator,class RandomIterator,class Distance,class Compare>
+    RandomIterator psort_copy_aux(InputIterator first,InputIterator last,RandomIterator result_first,RandomIterator result_last,Distance*,Compare comp){
+        if(result_first == result_last){
+            return result_last;
+        }
+        auto result_iter = result_first;
+        while(first != last && result_iter != result_last){
+            *result_iter = *first;
+            ++result_iter;
+            ++first;
+        }
+        XinSTL::make_heap(result_first,result_iter,comp);
+        while(first != last){
+            if(comp(*first,*result_first)){
+                XinSTL::adjust_heap(result_first,static_cast<Distance>(0),result_iter - result_first,*first,comp);
+            }
+            ++first;
+        }
+        XinSTL::sort_heap(result_first,result_iter,comp);
+        return result_iter;
+    }
+
+    template<class InputIterator,class RandomIterator,class Compare>
+    RandomIterator partial_sort_copy(InputIterator first,InputIterator last,RandomIterator result_first,RandomIterator result_last,Compare comp){
+        return XinSTL::psort_copy_aux(first,last,result_first,result_last,distance_type(result_first),comp);
+    }
+
+    //**************************************************************************
+    //partition
+    //对区间内的元素重排，被一元条件运算判定为true的元素会放到区间的前段
+    //该函数不保证元素的原始相对位置
+    template<class BidirectionalIterator,class UnaryPredicate>
+    BidirectionalIterator partition(BidirectionalIterator first,BidirectionalIterator last,UnaryPredicate unary_pred){
+        while(true){
+            while(first != last && unary_pred(*first)){
+                ++first;
+            }
+            if(first == last){
+                break;
+            }
+            --last;
+            while(first != last && !unary_pred(*last)){
+                --last;
+            }
+            if(first == last){
+                break;
+            }
+            XinSTL::iter_swap(first,last);
+            ++first;
+        }
+        return first;
+    }
+
+    //partition_copy
+    //行为与partition类似，不同的是，将被一元操作符判定为true的放到result_true的输出区间
+    //其余放到result_false的输出区间，并返回一个XinSTL::pair指向这两个区间的尾部
+    template<class InputIterator,class OutputIterator1,class OutputIterator2,class UnaryPredicate>
+    XinSTL::pair<OutputIterator1,OutputIterator2>
+    partial_copy(InputIterator first,InputIterator last,OutputIterator1 result_true,OutputIterator2 result_false,UnaryPredicate unary_pred){
+        for(;first != last;first++){
+            if(unary_pred(*first)){
+                *result_true++ = *first;
+            }else{
+                *result_false++ = *first;
+            }
+        }
+        return XinSTL::pair<OutputIterator1,OutputIterator2>(result_true,result_false);
+    }
+
+    
 }
 

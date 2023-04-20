@@ -1927,6 +1927,370 @@ namespace XinSTL{
         return XinSTL::pair<OutputIterator1,OutputIterator2>(result_true,result_false);
     }
 
-    
-}
+    //***************************************************************************
+    //sort将[first,last)内的元素以递增的方式排序
+
+    //threshold
+    //小型区间的大小，在这个大小内使用插入排序
+    constexpr static size_t kSmallSectionSize = 128;
+
+    //找出lgk <= n的k的最大值
+    template<class Size>
+    Size slg2(Size n){
+        Size k = 0;
+        for(;n > 1;n >> 1){
+            k++;
+        }
+        return k;
+    }
+
+    //分割函数
+    //用于控制分割恶化的情况
+    //用于quick_sort
+    //当!(first < last)时，表示序列调整完毕
+    //first为轴，左半部分小于等于pivot，右半部分大于等于pivot
+    template<class RandomIterator,class T>
+    RandomIterator unchecked_partition(RandomIterator first,RandomIterator last,const T& pivot){
+        while(true){
+            while(*first < pivot){
+                first++;
+            }
+            last--;
+            while(pivot < *last){
+                last--;
+            }
+            if(!(first < last)){
+                return first;
+            }
+            XinSTL::iter_swap(first,last);
+            first++;
+        }
+    }
+
+    //不恰当的pivot选择，可能导致quick_sort退化为O(N^2)
+    //内省式算法
+    //有恶化倾向时，改用heap sort
+    template<class RandomIterator,class Size>
+    void intro_sort(RandomIterator first,RandomIterator last,Size depth_limit){
+        while(static_cast<size_t>(last-first) > kSmallSectionSize){
+            if(depth_limit == 0){
+                //到达最大分割深度限制
+                //改用heap_sort
+                XinSTL::partial_sort(first,last,last);
+                return;
+            }
+            depth_limit--;
+            auto mid = XinSTL::median(*(first),*(first+(last-first)/2),*(last-1));
+            auto cut = XinSTL::unchecked_partition(first,last,mid);
+            XinSTL::intro_sort(cut,last,depth_limit);
+            last = cut;
+        }
+    }
+
+    //insertion_sort以双层循环的形式进行
+    //外循环遍历整个序列，每次迭代器决定出一个子区间
+    //内循环遍历子区间，将逆转对倒转过来
+
+    //插入排序辅助函数
+    //unchencked_linear_insert
+    template<class RandomIterator,class T>
+    void unchecked_linear_insert(RandomIterator last,const T& value){
+        auto next = last;
+        next--;
+        //insertion sort的内循环
+        //一旦不再出现逆转对，循环结束
+        while(value < *next){//逆转对存在
+            *last = *next;//调整
+            last = next;//调整迭代器
+            next--;//左移一个位置
+        }
+        *last = value;//value的正确落脚处
+    }
+
+    //插入排序函数
+    //unchecked_insertion_sort
+    template<class RandomIterator>
+    void unchecked_insertion_sort(RandomIterator first,RandomIterator last){
+        for(auto i = first;i != last;i++){
+            XinSTL::unchecked_linear_insert(i,*i);
+        }
+    }
+
+    //插入排序函数
+    //insertion_sort
+    template<class RandomIterator>
+    void insertion_sort(RandomIterator first,RandomIterator last){
+        if(first == last){
+            return;
+        }
+        for(auto i = first + 1;i != last;i++){
+            auto value = *i;
+            if(value < *first){
+                XinSTL::copy_backward(first,i,i+1);
+                *first = value;
+            }else{
+                XinSTL::unchecked_linear_insert(i,value);
+            }
+        }
+    }
+
+    //对于“几近排序但尚未彻底排序”的子序列做一次完整的排序，其效率更好
+    //final_insertion_sort
+    template<class RandomIterator>
+    void final_insertion_sort(RandomIterator first,RandomIterator last){
+        if(static_cast<size_t>(last-first) > kSmallSectionSize){
+            XinSTL::insertion_sort(first,first+kSmallSectionSize);
+            XinSTL::unchecked_insertion_sort(first+kSmallSectionSize,last);
+        }else{
+            XinSTL::insertion_sort(first,last);
+        }
+    }
+
+    template<class RandomIterator>
+    void sort(RandomIterator first,RandomIterator last){
+        if(first != last){
+            //内省式排序，将区间分为一个个小区间，然后对整体进行插入排序
+            XinSTL::intro_sort(first,last,slg2(last-first)*2);
+            XinSTL::final_insertion_sort(first,last);
+        }
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    //分割函数unchecked_partition
+    template<class RandomIterator,class T,class Compare>
+    RandomIterator unchecked_partition(RandomIterator first,RandomIterator last,const T& pivot,Compare comp){
+        while(true){
+            while(comp(*first,pivot)){
+                first++;
+            }
+            last--;
+            while(comp(pivot,*last)){
+                last--;
+            }
+            if(!(first < last)){
+                return first;
+            }
+            XinSTL::iter_swap(first,last);
+            first++;
+        }
+    }
+
+    //内省式排序
+    //重载版本
+    template<class RandomIterator,class Size,class Compare>
+    void intro_sort(RandomIterator first,RandomIterator last,Size depth_limit,Compare comp){
+        while(static_cast<size_t>(last-first) > kSmallSectionSize){
+            if(depth_limit == 0){
+                //到达最大分割深度限制
+                XinSTL::partial_sort(first,last,last,comp);
+                return;
+            }
+            depth_limit--;
+            auto mid = XinSTL::median(*(first),*(first+(last-first)/2),*(last-1));
+            auto cut = XinSTL::unchecked_partition(first,last,mid,comp);
+            XinSTL::intro_sort(cut,last,depth_limit,comp);
+            last = cut;
+        }
+    }
+
+    //插入排序辅助函数
+    //unchecked_linear_insert
+    template<class RandomIterator,class T,class Compare>
+    void unchecked_linear_insert(RandomIterator last,const T& value,Compare comp){
+        auto next = last;
+        next--;
+        while(comp(value,*next)){
+            //从尾部开始寻找第一个可插入位置
+            *last = *next;
+            last = next;
+            next--;
+        }
+        *last = value;
+    }
+
+    //插入排序函数
+    //unchecked_insertion_sort
+    template<class RandomIterator,class Compare>
+    void unchecked_insertion_sort(RandomIterator first,RandomIterator last,Compare comp){
+        for(auto i = first;i != last;i++){
+            XinSTL::unchecked_linear_insert(i,*i,comp);
+        }
+    }
+
+    //插入排序函数
+    //insertion_sort
+    template<class RandomIterator,class Compare>
+    void insertion_sort(RandomIterator first,RandomIterator last,Compare comp){
+        if(first == last){
+            return;
+        }
+        for(auto i = first+1;i != last;i++){
+            auto value = *i;
+            if(comp(value,*first)){
+                XinSTL::copy_backward(first,i,i+1);
+                *first = value;
+            }else{
+                XinSTL::unchecked_linear_insert(i,value,comp);
+            }
+        }
+    }
+
+    //最终插入排序函数
+    //final_insertion_sort
+    template<class RandomIterator,class Compare>
+    void final_insertion_sort(RandomIterator first,RandomIterator last,Compare comp){
+        if(static_cast<size_t>(last-first) > kSmallSectionSize){
+            XinSTL::insertion_sort(first,first+kSmallSectionSize,comp);
+            XinSTL::unchecked_insertion_sort(first+kSmallSectionSize,last,comp);
+        }else{
+            XinSTL::insertion_sort(first,last,comp);
+        }
+    }
+
+    template<class RandomIterator,class Compare>
+    void sort(RandomIterator first,RandomIterator last,Compare comp){
+        if(first != last){
+            //内省式排序
+            //将区间分为一个个小区间，然后对整体进行插入排序
+            XinSTL::intro_sort(first,last,slg2(last-first)*2,comp);
+            XinSTL::final_insertion_sort(first,last,comp);
+        }
+    }
+
+    //**************************************************************************
+    //nth_element
+    //对序列重排，使得所有小于第n个元素的元素出现在它的前面
+    //大于它的出现在它的后面
+    template<class RandomIterator>
+    void nth_element(RandomIterator first,RandomIterator nth,RandomIterator last){
+        if(nth == last){
+            return;
+        }
+        while(last - first > 3){
+            auto cut = XinSTL::unchecked_partition(first,last,XinSTL::median(*first,*(first+(last-first)/2),*(last-1)));
+            if(cut <= nth){
+                //如果nth位于右段
+                //对右段进行分割
+                first = cut;
+            }else{
+                //对左段进行分割
+                last = cut;
+            }
+        }
+        XinSTL::insertion_sort(first,last);
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    template<class RandomIterator,class Compare>
+    void nth_element(RandomIterator first,RandomIterator nth,RandomIterator last,Compare comp){
+        if(nth == last){
+            return;
+        }
+        while(last - first > 3){
+            auto cut = XinSTL::unchecked_partition(first,last,XinSTL::median(*first,*(first+(last-first)/2),*(last-1)),comp);
+            if(cut <= nth){
+                //如果nth位于右段
+                //对右段进行分割
+                first = cut;
+            }else{
+                //对左段进行分割
+                last = cut;
+            }
+        }
+        XinSTL::insertion_sort(first,last,comp);
+    }
+
+    //**************************************************************************
+    //unique_copy
+    //从[first,last)中将元素复制到result上
+    //序列必须有序，如果有重复的元素，只会复制一次
+
+    //unique_copy_dispatch的forward_iterator_tag版本
+    template<class InputIterator,class ForwardIterator>
+    ForwardIterator unique_copy_dispatch(InputIterator first,InputIterator last,ForwardIterator result,forward_iterator_tag){
+        *result = *first;
+        while(++first != last){
+            if(*result != *first){
+                *++result = *first;
+            }
+        }
+        return ++result;
+    }
+
+    //output_iterator_tag版本
+    //由于output_iterator只有只读操作
+    //所以不能有*result != *first这样的判断
+    template<class InputIterator,class OutputIterator>
+    OutputIterator unique_copy_dispatch(InputIterator first,InputIterator last,OutputIterator result,output_iterator_tag){
+        auto value = *first;
+        *result = value;
+        while(++first != last){
+            if(value = *first){
+                value = *first;
+                *++result = value;
+            }
+        }
+        return ++result;
+    }
+
+    template<class InputIterator,class OutputIteartor>
+    OutputIteartor unique_copy(InputIterator first,InputIterator last,OutputIteartor result){
+        if(first == last){
+            return result;
+        }
+        return XinSTL::unique_copy_dispatch(first,last,result,iterator_category(result));
+    }
+
+    //重逢版本使用函数对象comp代替比较操作
+    //unique_copy_dispatch的forwrad_iterator_tag版本
+    template<class InputIterator,class ForwardIterator,class Compare>
+    ForwardIterator unique_copy_dispatch(InputIterator first,InputIterator last,ForwardIterator result,forward_iterator_tag,Compare comp){
+        *result = *first;
+        while(++first != last){
+            if(!(comp(*result,*first))){
+                *++result = *first;
+            }
+        }
+        return ++result;
+    }
+
+    //output_iterator_tag版本
+    template<class InputIterator,class OutputIterator,class Compare>
+    OutputIterator unique_copy_dispatch(InputIterator first,InputIterator last,OutputIterator result,output_iterator_tag,Compare comp){
+        auto value = *first;
+        *result = value;
+        while(++first != last){
+            if(!comp(value,*first)){
+                value = *first;
+                *++result = value;
+            }
+        }
+        return ++result;
+    }
+
+    template<class InputIterator,class OutputIterator,class Compare>
+    OutputIterator unique_copy(InputIterator first,InputIterator last,OutputIterator result,Compare comp){
+        if(first == last){
+            return result;
+        }
+        return XinSTL::unique_copy_dispatch(first,last,result,iterator_category(result),comp);
+    }
+
+    //***************************************************************************
+    //unique
+    //移除[first,last)内重复的元素
+    //序列必须有序，和remove类似，它也不能真正的删除重复元素
+    template<class ForwardIterator>
+    ForwardIterator unique(ForwardIterator first,ForwardIterator last){
+        first = XinSTL::adjacent_find(first,last);
+        return XinSTL::unique_copy(first,last,first);
+    }
+
+    //重载版本使用函数对象comp代替比较操作
+    template<class ForwardIterator,class Compare>
+    ForwardIterator unique(ForwardIterator first,ForwardIterator last,Compare comp){
+        first = XinSTL::adjacent_find(first,last,comp);
+        return XinSTL::unique_copy(first,last,first,comp);
+    }
+} 
 

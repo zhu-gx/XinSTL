@@ -70,6 +70,8 @@ namespace XinSTL{
         iterator cap_;//表示目前存储空间的尾部
 
     public:
+        
+
         //构造、复制、移动、析构函数
         vector()noexcept{
             try_init();
@@ -184,7 +186,7 @@ namespace XinSTL{
             return static_cast<size_type>(cap_ - begin_);
         }
 
-        void reverse(size_type n);
+        void reserve(size_type n);
         void shrink_to_fit();
 
         //访问元素相关操作
@@ -343,4 +345,222 @@ namespace XinSTL{
         void reinsert(size_type size);
     };
 
+    //***************************************************************************
+    //复制赋值操作符
+    template<class T>
+    vector<T>& vector<T>::operator=(const vector& rhs){
+        if(this != &rhs){
+            const auto len = rhs.size();
+            if(len > capacity()){
+                vector temp(rhs.begin(),rhs.end());
+                swap(temp);
+            }else if(size() >= len){
+                auto i = XinSTL::copy(rhs.begin(),rhs.end(),begin());
+                data_allocator::destroy(i,end_);
+                end_ = begin_ + len;
+            }else{
+                XinSTL::copy(rhs.begin(),rhs.begin()+size(),begin());
+                XinSTL::uninitialized_copy(rhs.begin()+size(),rhs.end(),end_);
+                cap_ = end_ = begin_ + len;
+            }
+        }
+        return *this;
+    }
+
+    //移动赋值操作符
+    template<class T>
+    vector<T>& vector<T>::operator=(vector&& rhs)noexcept{
+        destroy_and_recover(begin_,end_,cap_-begin_);
+        begin_ = rhs.begin_;
+        end_ = rhs.end_;
+        cap_ = rhs.cap_;
+        rhs.begin_ = nullptr;
+        rhs.end_ = nullptr;
+        rhs.cap_ = nullptr;
+        return *this;
+    }
+
+    //预留空间大小，当原容量小于要求大小时，才会重新分配
+    template<class T>
+    void vector<T>::reserve(size_type n){
+        if(capacity() < n){
+            THROW_LENGTH_ERROR_IF(n > max_size(),"n can't larger than max_size() in vector<T>::reserve(n)");
+            const auto old_size = size();
+            auto temp = data_allocator::allocate(n);
+            XinSTL::uninitialized_move(begin_,end_,temp);
+            data_allocator::deallocate(begin_,cap_ - begin_);
+            begin_ = temp;
+            end_ = temp + old_size;
+            cap_ = begin_ + n;
+        }
+    }
+
+    //放弃多余的容量
+    template<class T>
+    void vector<T>::shrink_to_fit(){
+        if(end_ < cap_){
+            reinsert(size());
+        }
+    }
+
+    //在pos位置就地构造元素，避免额外的复制或移动开销
+    template<class T>
+    template<class ...Args>
+    typename vector<T>::iterator
+    vector<T>::emplace(const_iterator pos,Args&& ...args){
+        XINSTL_DEBUG(pos >= begin() && pos <= end());
+        iterator xpos = const_cast<iterator>(pos);
+        const size_type n = xpos - begin_;
+        if(end_ != cap_ && xpos == end_){
+            data_allocator::construct(XinSTL::address_of(*end),XinSTL::forward<Args>(args)...);
+            end_++;
+        }else if(end_ != cap_){
+            auto new_end = end_;
+            data_allocator::construct(XinSTL::address_of(*end_),*(end_ - 1));
+            new_end++;
+            XinSTL::copy_backward(xpos,end_ - 1,end_);
+            *xpos = value_type(XinSTL::forward<Args>(args)...);
+            end_ = new_end;
+        }else{
+            reallocate_emplace(xpos,XinSTL::forward<Args>(args)...);
+        }
+        return begin() + n;
+    }
+
+    //在尾部就地构造元素，避免额外的复制或移动开销
+    template<class T>
+    template<class ...Args>
+    void vector<T>::emplace_back(Args&& ...args){
+        if(end_ < cap_){
+            data_allocator::construct(XinSTL::address_of(*end_),XinSTL::forward<Args>(args)...);
+            end_++;
+        }else{
+            reallocate_emplace(end_,XinSTL::forward<Args>(args)...);
+        }
+    }
+
+    //在尾部插入元素
+    template<class T>
+    void vector<T>::push_back(const value_type& value){
+        if(end_ != cap_){
+            data_allocator::construct(XinSTL::address_of(*end_),value);
+            end_++;
+        }else{
+            reallocate_insert(end_,value);
+        }
+    }
+
+    //弹出尾部元素
+    template<class T>
+    void vector<T>::pop_back(){
+        XINSTL_DEBUG(!empty());
+        data_allocator::destroy(end_ - 1);
+        end_--;
+    }
+
+    //在pos处插入元素
+    template<class T>
+    typename vector<T>::iterator
+    vector<T>::insert(const_iterator pos,const value_type& value){
+        XINSTL_DEBUG(pos >= begin() && pos <= end());
+        iterator xpos = const_cast<iterator>(pos);
+        const size_type n = pos - begin_;
+        if(end_ != cap_ && xpos == end_){
+            data_allocator::construct(XinSTL::address_of(*end_),value);
+            end_++;
+        }else if(end_ != cap_){
+            auto new_end = end_;
+            data_allocator::construct(XinSTL::address_of(*end_),*(end_-1));
+            new_end++;
+            auto value_copy = value;//避免元素因以下复制操作而被改变
+            XinSTL::copy_backward(xpos,end_ - 1,end_);
+            *xpos = XinSTL::move(value_copy);
+            end_ = new_end;
+        }else{
+            reallocate_insert(xpos,value);
+        }
+        return begin_ + n;
+    }
+
+    //删除[first,last)上的元素
+    template<class T>
+    typename vector<T>::iterator
+    vector<T>::erase(const_iterator first,const_iterator last){
+        XINSTL_DEBUG(first >= begin() && last <= end() && !(last < first));
+        const auto n = first - begin();
+        iterator r = begin_ + (first - begin());
+        data_allocator::destroy(XinSTL::move(r + (last-first),end_,r),end_);
+        end_ = end_ - (last - first);
+        return begin_ + n;
+    }
+
+    //重置容器大小
+    template<class T>
+    void vector<T>::resize(size_type new_size,const value_type& value){
+        if(new_size < size()){
+            erase(begin()+new_size,end());
+        }else{
+            insert(end(),new_size - size(),value);
+        }
+    }
+
+    //与另一个vector交换
+    template<class T>
+    void vector<T>::swap(vector<T>& rhs)noexcept{
+        if(this != &rhs){
+            XinSTL::swap(begin_,rhs.begin_);
+            XinSTL::swap(end_,rhs.end_);
+            XinSTL::swap(cap_,rhs.cap_);
+        }
+    }
+
+    //***************************************************************************
+    //helper function
+
+    //try_init函数，若分配失败则忽略，不抛出异常
+    template<class T>
+    void vector<T>::try_init()noexcept{
+        try{
+            begin_ = data_allocator::allocate(16);
+            end_ = begin_;
+            cap_ = begin_ + 16;
+        }catch(...){
+            begin_ = nullptr;
+            end_ = nullptr;
+            cap_ = nullptr;
+        }
+    }
+
+    //init_space函数
+    template<class T>
+    void vector<T>::init_space(size_type size,size_type cap){
+        try{
+            begin_ = data_allocator::allocate(cap);
+            end_ = begin_ + size;
+            cap_ = begin_ + cap;
+        }catch(...){
+            begin_ = nullptr;
+            end_ = nullptr;
+            cap_ = nullptr;
+            throw;
+        }
+    }
+
+    //fill_init函数
+    template<class T>
+    void vector<T>::fill_init(size_type n,const value_type& value){
+        const size_type init_size = XinSTL::max(static_cast<size_type>(16),n);
+        init_space(n,init_size);
+        XinSTL::uninitialized_fill_n(begin_,n,value);
+    }
+
+    //range_init函数
+    template<class T>
+    template<class Iterator>
+    void vector<T>::range_init(Iterator first,Iterator last){
+        const size_type len = XinSTL::distance(first,last);
+        const size_type init_size = XinSTL::max(len,static_cast<size_type>(16));
+        init_space(len,init_size);
+        XinSTL::uninitialized_copy(first,last,begin_);
+    }
 }

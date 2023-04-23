@@ -172,6 +172,4 @@ namespace XinSTL{
         }
         return XinSTL::copy(first2,last2,XinSTL::copy(first1,last1,result));
     }
-
-    
 }
